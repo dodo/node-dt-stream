@@ -1,0 +1,6 @@
+*~
+*.swp
+lib/*
+*.browser.*
+.lock-wscript
+node_modules/
