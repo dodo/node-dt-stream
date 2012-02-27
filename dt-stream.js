@@ -1,2 +1,2 @@
 
-module.exports = require('./lib/stream')
+module.exports = require('./lib/dt-stream')
