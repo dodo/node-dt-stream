@@ -22,7 +22,7 @@ prettify = (el, data) ->
 attrStr = (attrs = {}) ->
     strattrs = for k, v of attrs
         if v?
-            v = "\"#{v}\"" unless typeof v is 'number'
+            v = "\"#{v}\"" unless typeof v is 'number' or typeof v is 'boolean'
             "#{k}=#{v}"
         else "#{k}"
     strattrs.unshift '' if strattrs.length
