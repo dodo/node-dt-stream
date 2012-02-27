@@ -40,7 +40,7 @@ removed = (el) ->
 delay = (job) ->
     return if removed this
     # only when tag is ready
-    if @_streamed? and @closed
+    if @_streamed? #and @closed
         do job
     else
         @_stream_buffer?= []
@@ -49,7 +49,7 @@ delay = (job) ->
 
 # invoke all delayed stream work
 release = () ->
-#     console.log "release", @name, attrStr(@attrs), @_stream_buffer
+    console.log "release", @name, attrStr(@attrs), @_stream_buffer
     if @_stream_buffer?
         for job in @_stream_buffer
             do job
@@ -78,40 +78,49 @@ streamify = (tpl) ->
         # insert into parent
 #         unless parent.closed is 'pending'
 #         release.call parent if parent._streamed?
-        if parent is builder
-            target = el
-        else
-            target = parent
-        delay.call target, ->
+#         if parent is builder
+#             target = el
+#         else
+#             target = parent
+        delay.call el, ->
             console.log "write", el.name, el.closed, el._streamed
             if el.closed is 'self'
                 write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
             else
                 write prettify el, "<#{el.name}#{attrStr el.attrs}>"
-                release.call el unless parent is builder
-            el._streamed = yes
+#             release.call parent if el.closed #if el is parent.pending[0]
 
-        console.log "add", el.name, attrStr(el.attrs), "(#{parent.name})", el._stream_buffer?.length, (el is parent.pending[0]), parent._streamed
-#         release.call parent if el is parent.pending[0]
+        console.log "add", el.name, attrStr(el.attrs), "(#{parent.name})", el._stream_buffer?.length, {pending:(el is parent.pending[0]), streamed:parent._streamed, isbuilder:(parent is builder), parlen:el.parent.pending.length}
+
+        delay.call parent, ->
+            if el.closed #and el is parent.pending[0]
+                el._streamed = yes
+#             release.call el #unless parent is builder
+                release.call el
+
+        release.call parent if el is parent.pending[0]
 
     tpl.on 'close', (el) ->
-        console.log "close", el.name, attrStr(el.attrs), el.closed, el.isempty, (el is el.parent.pending[0])
+        console.log "close", el.name, attrStr(el.attrs), {closed:el.closed, isempty:el.isempty, pending:(el is el.parent.pending[0]), parlen:el.parent.pending.length}
 #         buffer = null
 #         delay.call el.parent, ->
-#         if el is el.parent.pending[0]
+        if el is el.parent.pending[0]
 #             release.call el.parent
-#             target = el.parent
+            target = el.parent
 #             t = el
-#         else
-#             target = el
+        else
+            target = el
 #             t = el.parent
         delay.call el, ->
 #             release.call el
             unless el.closed is 'self'
                 write prettify el, "</#{el.name}>"
 #             el._streamed = yes
-        release.call el if el.parent is builder#el.parent._streamed?
-#         release.call el.parent if el is el.parent.pending[0]
+            release.call el.parent if el is el.parent.pending[0]
+#             release.call el.parent if el.parent.pending.length is 1
+        if el.closed and el is el.parent.pending[0]
+            release.call el
+#         release.call el if el.parent is builder#el.parent._streamed?
 
     tpl.on 'data', (el, data) ->
         delay.call el, ->
