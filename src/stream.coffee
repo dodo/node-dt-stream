@@ -36,101 +36,94 @@ attrStr = (attrs = {}) ->
 removed = (el) ->
     el.closed is "removed"
 
+# delay or invoke job immediately
+delay = (job) ->
+    return if removed this
+    # only when tag is ready
+    if @_streamed? and @closed
+        do job
+    else
+        @_stream_buffer?= []
+        @_stream_buffer.push(job)
+
+
+# invoke all delayed stream work
+release = () ->
+#     console.log "release", @name, attrStr(@attrs), @_stream_buffer
+    if @_stream_buffer?
+        for job in @_stream_buffer
+            do job
+        delete @_stream_buffer
+
 
 #return true if @hidden # dont emit data when this tag is hidden # FIXME
 streamify = (tpl) ->
+#     buffer = null
     stream = new Stream
     stream.readable = on
 
-    emit = (data) ->
-        stream.emit('data', data)
-
-    _write = (data) ->
-        return if @hidden
-        if @_stream.before is null
-#             console.log "write", @name, attrStr(@attrs), data
-            emit data
-        else
-#             console.log "buffer", @name, attrStr(@attrs), data
-            @_stream.buffer.push data
-
-    write_head = ->
-        if @isempty and not @closed
-#             console.log "head", @name, attrStr(@attrs)
-            _write.call this, prettify this, "<#{@name}#{attrStr @attrs}>"
-
     write = (data) ->
-        write_head.call this
-        _write.call this, data
+        stream.emit('data', data) if data
 
-    builder = tpl.xml ? tpl
     tpl.stream = stream
-    builder._stream =
-        buffer:[]
-        before:null
-        after:null
-        first:null
-        last:null
+    builder = tpl.xml ? tpl
+    builder._streamed = yes
+
+#     tpl.on 'add', (parent, el) ->
+#         console.log "add", el.name, attrStr(el.attrs)
+#         write buffer
+#         buffer = prettify el, "<#{el.name}#{attrStr el.attrs}>"
 
     tpl.on 'add', (parent, el) ->
-        console.log "add", el.name, attrStr(el.attrs)
-        write_head.call parent
-        parstream = parent._stream
-        el._stream =
-            buffer:[]
-            before:parstream.last
-            after:null
-            first:null
-            last:null
-        parstream.last?.after = el
-        parstream.first ?= el
-        parstream.last = el
+        # insert into parent
+#         unless parent.closed is 'pending'
+#         release.call parent if parent._streamed?
+        if parent is builder
+            target = el
+        else
+            target = parent
+        delay.call target, ->
+            console.log "write", el.name, el.closed, el._streamed
+            if el.closed is 'self'
+                write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
+            else
+                write prettify el, "<#{el.name}#{attrStr el.attrs}>"
+                release.call el unless parent is builder
+            el._streamed = yes
+
+        console.log "add", el.name, attrStr(el.attrs), "(#{parent.name})", el._stream_buffer?.length, (el is parent.pending[0]), parent._streamed
+#         release.call parent if el is parent.pending[0]
 
     tpl.on 'close', (el) ->
-
-        console.log "close", el.name, attrStr(el.attrs), el.closed, el.isempty
-        if el._stream.before
-            cur = el._stream
-            after  = cur.after?._stream
-            before = cur.before._stream
-            before.buffer = before.buffer?.concat(cur.buffer)
-            after?.before = cur.before
-            before.after  = cur.after
-            if el is el.parent._stream.last
-                el.parent._stream.last = cur.before
-            el._stream = "done"
-            return
-        while el?.closed
-            break unless el.parent._stream.first is el
-            # empty buffer
-            emit data for data in el._stream.buffer
-            if el.closed is 'self'
-                data = "<#{el.name}#{attrStr el.attrs}/>"
-            else
-                data = "</#{el.name}>"
-#             console.log el.name, attrStr(el.attrs), el.isempty, el.closed, data
-            write.call el, prettify el, data
-            # update linked list
-            el._stream.after?.before = null
-            if el is el.parent._stream.first
-                el.parent._stream.first = el._stream.after
-            if el is el.parent._stream.last
-                el.parent._stream.last = null
-            el._stream = "done"
-            el = el._stream.after
-        0
+        console.log "close", el.name, attrStr(el.attrs), el.closed, el.isempty, (el is el.parent.pending[0])
+#         buffer = null
+#         delay.call el.parent, ->
+#         if el is el.parent.pending[0]
+#             release.call el.parent
+#             target = el.parent
+#             t = el
+#         else
+#             target = el
+#             t = el.parent
+        delay.call el, ->
+#             release.call el
+            unless el.closed is 'self'
+                write prettify el, "</#{el.name}>"
+#             el._streamed = yes
+        release.call el if el.parent is builder#el.parent._streamed?
+#         release.call el.parent if el is el.parent.pending[0]
 
     tpl.on 'data', (el, data) ->
-        write.call el, data
+        delay.call el, ->
+            write data
 
     tpl.on 'text', (el, text) ->
-        write.call el, text
+        delay.call el, ->
+            write text
 
     tpl.on 'raw', (el, html) ->
-        write.call el, html
-
-    tpl.on 'data', (el, data) ->
-        write.call el, data
+        delay.call el, ->
+            write html
 
     tpl.on 'attr', (el, key, value) ->
         return unless el.isempty
@@ -138,6 +131,7 @@ streamify = (tpl) ->
 
     tpl.on 'end', ->
         console.log "tpl end"
+#         release.call builder
         stream.emit 'end'
 
 # exports
