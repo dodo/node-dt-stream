@@ -44,7 +44,7 @@ streamify = (tpl) ->
 
     tpl.on 'text', (el, text) ->
         delay.call el, ->
-            write text
+            write prettify el, text
 
     tpl.on 'raw', (el, html) ->
         delay.call el, ->
