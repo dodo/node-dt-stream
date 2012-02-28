@@ -57,6 +57,8 @@ streamify = (tpl) ->
     tpl.on 'end', ->
         stream.emit 'end'
 
+    return tpl
+
 # exports
 
 module.exports = streamify
