@@ -34,6 +34,10 @@ streamify = (tpl) ->
         delay.call el, ->
             unless el.closed is 'self'
                 write prettify el, "</#{el.name}>"
+#             console.error "ready!", el.name, el._stream_ready
+            el._stream_ready?()
+            el._stream_ready = yes
+
             release.call el.parent if el is el.parent.pending[0]
         if el.closed and el is el.parent.pending[0]
             release.call el
@@ -56,6 +60,13 @@ streamify = (tpl) ->
 
     tpl.on 'end', ->
         stream.emit 'end'
+
+    tpl.register 'ready', (tag, next) ->
+        if tag._stream_ready is yes
+            next(tag)
+        else
+            tag._stream_ready = ->
+                next(tag)
 
     return tpl
 
