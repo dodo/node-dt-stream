@@ -1,27 +1,52 @@
 { Stream } = require 'stream'
 { delay, release, prettify, attrStr } = require './util'
 
+EVENTS = [
+    'add', 'close', 'end'
+    'attr','text', 'raw', 'data'
+]
+
 # TODO drainage
+# TODO dont emit data from hidden tags
 
-#return true if @hidden # dont emit data when this tag is hidden # FIXME
-streamify = (tpl) ->
-    stream = new Stream
-    stream.readable = on
 
-    write = (data) ->
-        stream.emit('data', data) if data
+class StreamAdapter
+    constructor: (@template, opts = {}) ->
+        @builder = @template.xml ? @template
+        @stream = opts.stream ? new Stream
+        @stream.readable ?= on
+        @initialize()
 
-    tpl.stream = stream
-    builder = tpl.xml ? tpl
-    builder._streamed = yes
-
-    tpl.on 'add', (parent, el) ->
-        # insert into parent
-        delay.call el, ->
-            if el.closed is 'self'
-                write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
+    initialize: () ->
+        @template.stream = @stream
+        @builder._streamed = yes
+        do @listen
+        # register ready handler
+        @template.register 'ready', (tag, next) ->
+            # when tag is already in the dom its fine,
+            #  else wait until it is inserted into dom
+            if tag._stream_ready is yes
+                next(tag)
             else
-                write prettify el, "<#{el.name}#{attrStr el.attrs}>"
+                tag._stream_ready = ->
+                    next(tag)
+
+    listen: () ->
+        EVENTS.forEach (event) =>
+            @template.on(event, this["on#{event}"].bind(this))
+
+    write: (data) ->
+        @stream.emit('data', data) if data
+
+    # eventlisteners
+
+    onadd: (parent, el) ->
+        # insert into parent
+        delay.call el, =>
+            if el.closed is 'self'
+                @write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
+            else
+                @write prettify el, "<#{el.name}#{attrStr el.attrs}>"
 
         delay.call parent, ->
             return unless el.closed
@@ -30,11 +55,10 @@ streamify = (tpl) ->
 
         release.call parent if el is parent.pending[0]
 
-    tpl.on 'close', (el) ->
-        delay.call el, ->
+    onclose: (el) ->
+        delay.call el, =>
             unless el.closed is 'self'
-                write prettify el, "</#{el.name}>"
-#             console.error "ready!", el.name, el._stream_ready
+                @write prettify el, "</#{el.name}>"
             el._stream_ready?()
             el._stream_ready = yes
 
@@ -42,36 +66,33 @@ streamify = (tpl) ->
         if el.closed and el is el.parent.pending[0]
             release.call el
 
-    tpl.on 'data', (el, data) ->
-        delay.call el, ->
-            write data
+    ondata: (el, data) ->
+        delay.call el, =>
+            @write data
 
-    tpl.on 'text', (el, text) ->
-        delay.call el, ->
-            write prettify el, text
+    ontext: (el, text) ->
+        delay.call el, =>
+            @write prettify el, text
 
-    tpl.on 'raw', (el, html) ->
-        delay.call el, ->
-            write html
+    onraw: (el, html) ->
+        delay.call el, =>
+            @write html
 
-    tpl.on 'attr', (el, key, value) ->
+    onattr: (el, key, value) ->
         return unless el.isempty
         console.warn "attributes of #{el.toString()} don't change anymore"
 
-    tpl.on 'end', ->
-        stream.emit 'end'
+    onend: () ->
+        @stream.emit 'end'
 
-    tpl.register 'ready', (tag, next) ->
-        if tag._stream_ready is yes
-            next(tag)
-        else
-            tag._stream_ready = ->
-                next(tag)
 
+streamify = (tpl, opts) ->
+    new StreamAdapter(tpl, opts)
     return tpl
 
 # exports
 
+streamify.Adapter = StreamAdapter
 module.exports = streamify
 
 # browser support
