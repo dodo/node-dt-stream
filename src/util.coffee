@@ -29,29 +29,6 @@ attrStr = (attrs = {}) ->
     strattrs.join ' '
 
 
-removed = (el) ->
-    el.closed is "removed"
-
-
-# delay or invoke job immediately
-delay = (job) ->
-    return if removed this
-    # only when tag is ready
-    if @_streamed?
-        do job
-    else
-        @_stream_buffer?= []
-        @_stream_buffer.push(job)
-
-
-# invoke all delayed stream work
-release = () ->
-    if @_stream_buffer?
-        for job in @_stream_buffer
-            do job
-        delete @_stream_buffer
-
-
 # exports
 
 module.exports = {
@@ -59,7 +36,4 @@ module.exports = {
     breakline,
     prettify,
     attrStr,
-    removed,
-    delay,
-    release,
 }

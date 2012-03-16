@@ -1,6 +1,6 @@
 { Stream } = require 'stream'
 OrderedEmitter = require 'ordered-emitter'
-{ delay, release, prettify, attrStr } = require './util'
+{ prettify, attrStr } = require './util'
 
 EVENTS = [
     'add', 'close', 'end'
