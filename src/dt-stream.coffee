@@ -29,16 +29,19 @@ class Entry
         # placeholder for close
         @parent?._stream.children++
         # when this entry is ready resume parent
-        el.once 'ready', =>
-            @parent?._stream.order.emit('close', order:@idx+1)
+        el.ready =>
+            @parent?._stream.emit('close', order:@idx+1)
+
+    emit: ->
+        @order.emit(arguments...)
 
     write: (job) ->
         # no self closing tags please
         @release() if @children and @isnext
-        @order.emit 'entry', {job, order:(++@children)}
+        @emit 'entry', {job, order:(++@children)}
 
     release: () =>
-        @order.emit 'release', {order:0} unless @released
+        @emit 'release', {order:0} unless @released
         @released = yes
 
 
@@ -47,6 +50,7 @@ class StreamAdapter
         @builder = @template.xml ? @template
         @stream = opts.stream ? new Stream
         @stream.readable ?= on
+        @opened_tags = 0
         @initialize()
 
     initialize: () ->
@@ -71,15 +75,26 @@ class StreamAdapter
     write: (data) ->
         @stream.emit('data', data) if data
 
+    close: () =>
+        @builder.closed = yes
+        @stream.emit 'end'
+
     # eventlisteners
 
     onadd: (parent, el) ->
         el._stream = new Entry el, parent
+        @opened_tags++
         el._stream.write =>
             if el.closed is 'self'
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
             else
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}>"
+        el.ready =>
+            # close stream if builder is already closed
+            @opened_tags--
+            if @opened_tags is 0
+                @closed?()
+                @closed = yes
 
     onclose: (el) ->
         el._stream.write =>
@@ -88,6 +103,7 @@ class StreamAdapter
             # call next callback of the registered 'ready' checker
             el._stream_ready?()
             el._stream_ready = yes
+
 
     ondata: (el, data) ->
         el._stream.write =>
@@ -106,7 +122,12 @@ class StreamAdapter
         console.warn "attributes of #{el.toString()} don't change anymore"
 
     onend: () ->
-        @stream.emit 'end'
+        if @closed? and @opened_tags is 0
+            @close()
+        else
+            @builder.closed = 'pending'
+            @closed = @close
+
 
 
 
