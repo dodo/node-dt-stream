@@ -14,19 +14,26 @@ EVENTS = [
 class Entry
     constructor: (el, @parent) ->
         @order = new OrderedEmitter span:yes
+        # states
         @released = no
         @isnext = no
         @children = 0 # we start with 1 to use 0 as pause bit
+        # just run the job when it got ready
         @order.on('entry', ({job}) -> job?())
+        # tell the parent to write this entry when its time
         @parent?._stream.write =>
             @release() if @children
             @isnext = yes
+        # get the order position of this entry
         @idx = @parent?._stream.children ? -1
-        @parent?._stream.children++ # placeholder for close
+        # placeholder for close
+        @parent?._stream.children++
+        # when this entry is ready resume parent
         el.once 'ready', =>
             @parent?._stream.order.emit('close', order:@idx+1)
 
     write: (job) ->
+        # no self closing tags please
         @release() if @children and @isnext
         @order.emit 'entry', {job, order:(++@children)}
 
@@ -78,6 +85,7 @@ class StreamAdapter
         el._stream.write =>
             unless el.closed is 'self'
                 @write prettify el, "</#{el.name}>"
+            # call next callback of the registered 'ready' checker
             el._stream_ready?()
             el._stream_ready = yes
 
@@ -97,7 +105,7 @@ class StreamAdapter
         return unless el.isempty
         console.warn "attributes of #{el.toString()} don't change anymore"
 
-    onend: (r = 0) ->
+    onend: () ->
         @stream.emit 'end'
 
 
