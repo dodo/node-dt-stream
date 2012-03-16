@@ -1,4 +1,5 @@
 { Stream } = require 'stream'
+OrderedEmitter = require 'ordered-emitter'
 { delay, release, prettify, attrStr } = require './util'
 
 EVENTS = [
@@ -10,6 +11,30 @@ EVENTS = [
 # TODO dont emit data from hidden tags
 
 
+class Entry
+    constructor: (el, @parent) ->
+        @order = new OrderedEmitter span:yes
+        @released = no
+        @isnext = no
+        @children = 0 # we start with 1 to use 0 as pause bit
+        @order.on('entry', ({job}) -> job?())
+        @parent?._stream.write =>
+            @release() if @children
+            @isnext = yes
+        @idx = @parent?._stream.children ? -1
+        @parent?._stream.children++ # placeholder for close
+        el.once 'ready', =>
+            @parent?._stream.order.emit('close', order:@idx+1)
+
+    write: (job) ->
+        @release() if @children and @isnext
+        @order.emit 'entry', {job, order:(++@children)}
+
+    release: () =>
+        @order.emit 'release', {order:0} unless @released
+        @released = yes
+
+
 class StreamAdapter
     constructor: (@template, opts = {}) ->
         @builder = @template.xml ? @template
@@ -19,7 +44,8 @@ class StreamAdapter
 
     initialize: () ->
         @template.stream = @stream
-        @builder._streamed = yes
+        @builder._stream = new Entry @builder
+        @builder._stream.release()
         do @listen
         # register ready handler
         @template.register 'ready', (tag, next) ->
@@ -41,49 +67,39 @@ class StreamAdapter
     # eventlisteners
 
     onadd: (parent, el) ->
-        # insert into parent
-        delay.call el, =>
+        el._stream = new Entry el, parent
+        el._stream.write =>
             if el.closed is 'self'
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
             else
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}>"
 
-        delay.call parent, ->
-            return unless el.closed
-            el._streamed = yes
-            release.call el
-
-        release.call parent if el is parent.pending[0]
-
     onclose: (el) ->
-        delay.call el, =>
+        el._stream.write =>
             unless el.closed is 'self'
                 @write prettify el, "</#{el.name}>"
             el._stream_ready?()
             el._stream_ready = yes
 
-            release.call el.parent if el is el.parent.pending[0]
-        if el.closed and el is el.parent.pending[0]
-            release.call el
-
     ondata: (el, data) ->
-        delay.call el, =>
+        el._stream.write =>
             @write data
 
     ontext: (el, text) ->
-        delay.call el, =>
+        el._stream.write =>
             @write prettify el, text
 
     onraw: (el, html) ->
-        delay.call el, =>
+        el._stream.write =>
             @write html
 
     onattr: (el, key, value) ->
         return unless el.isempty
         console.warn "attributes of #{el.toString()} don't change anymore"
 
-    onend: () ->
+    onend: (r = 0) ->
         @stream.emit 'end'
+
 
 
 streamify = (tpl, opts) ->

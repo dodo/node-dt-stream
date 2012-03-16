@@ -9,6 +9,8 @@
 , "keywords": ["dt", "async", "dynamic", "event", "template", "generation", "string", "stream", "browser"]
 , "scripts": {
     "prepublish": "cake build"}
+, "dependencies": {
+    "ordered-emitter": "0.1.0"}
 , "devDependencies": {
     "browserify": "1.6.1",
     "scopify": ">= 0.2.1",
