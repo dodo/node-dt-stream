@@ -85,6 +85,7 @@ class StreamAdapter
         el._stream = new Entry el, parent
         @opened_tags++
         el._stream.write =>
+            return if el is el.builder
             if el.closed is 'self'
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
             else
@@ -98,7 +99,7 @@ class StreamAdapter
 
     onclose: (el) ->
         el._stream.write =>
-            unless el.closed is 'self'
+            unless el.closed is 'self' or el is el.builder
                 @write prettify el, "</#{el.name}>"
             # call next callback of the registered 'ready' checker
             el._stream_ready?()
