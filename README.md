@@ -16,13 +16,13 @@ $ npm install dt-stream
 var Template = require('dynamictemplate').Template;
 var streamify = require('dt-stream');
 
-var stream = streamify(new Template({schema:5, pretty:true}, function () {
+var template = streamify(new Template({schema:5, pretty:true}, function () {
     this.$html(function () {
         this.$body("hello world");
     });
 }));
 
-stream.pipe(process.stdout);
+template.stream.pipe(process.stdout);
 
 /* → stdout:
 <html>
