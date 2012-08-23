@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/dodo/node-dt-stream.png)](http://travis-ci.org/dodo/node-dt-stream)
 # [Δt Stream Adapter](https://github.com/dodo/node-dt-selector/)
 
 This is a stream adapter for [Δt](http://dodo.github.com/node-dynamictemplate/).
