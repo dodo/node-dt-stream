@@ -10,7 +10,7 @@
 , "scripts": {
     "prepublish": "cake build"}
 , "dependencies": {
-    "ordered-emitter": "0.1.0"}
+    "ordered-emitter": ">= 0.1.1"}
 , "devDependencies": {
     "browserify": "1.6.1",
     "scopify": ">= 0.2.1",
