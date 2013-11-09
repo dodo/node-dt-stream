@@ -86,6 +86,9 @@ class StreamAdapter
     # eventlisteners
 
     onadd: (parent, el) ->
+        unless parent.writable
+            console.warn "creating #{el.toString()} in closed #{parent.toString()} omitted"
+            return
         el._stream = new Entry el, parent
         @opened_tags++
         el._stream.write =>
