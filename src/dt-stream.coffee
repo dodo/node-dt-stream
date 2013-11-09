@@ -7,19 +7,19 @@ EVENTS = [
     'attr','text', 'raw', 'data'
 ]
 
-# TODO drainage
 # TODO dont emit data from hidden tags
 
 
 class Entry
-    constructor: (el, @parent) ->
+    constructor: (@stream, el, @parent) ->
         @order = new OrderedEmitter span:yes
         # states
         @released = no
-        @isnext = no
+        @isnext = if @parent? then no else yes
         @children = 0 # we start with 1 to use 0 as pause bit
         # just run the job when it got ready
-        @order.on('entry', ({job}) -> job?())
+        @order.on('entry', @do_job)
+        return if @isnext
         # tell the parent to write this entry when its time
         @parent?._stream.write =>
             @release() if not el.isempty or el.closed is yes
@@ -33,13 +33,27 @@ class Entry
             @parent?._stream.emit('close scope', order:idx+1)
         @parent?._stream.release()
 
+    do_job: ({job}) =>
+        return unless job
+        if @stream.paused
+            @stream.queue.push(job)
+        else
+            do job
+
     emit: ->
         @order.emit(arguments...)
 
     write: (job) ->
-        # no self closing tags please
-        @release() if @children and @isnext
-        @emit 'entry', {job, order:(++@children)}
+        payload = {job, order:(++@children)}
+        if @stream.paused
+            # no self closing tags please
+            @stream.queue.push(@release) if @children > 1 and @isnext
+            # delay until stream resumes
+            @stream.queue.push(@emit.bind(this, 'entry', payload))
+        else
+            # no self closing tags please
+            @release() if @children > 1 and @isnext
+            @emit 'entry', payload
 
     release: () =>
         return if @released
@@ -47,18 +61,23 @@ class Entry
         @released = yes
 
 
-class StreamAdapter
+
+class StreamAdapter extends Stream # Readable
     constructor: (@template, opts = {}) ->
+        super()
         @builder = @template.xml ? @template
-        @stream = opts.stream ? new Stream
-        @stream.readable ?= on
+        @encoding = opts.encoding ? 'utf8'
         @opened_tags = 0
+        @readable = yes
+        @paused = no
+        @queue = []
+        # initialize
+        @pipe(opts.stream) if opts.stream
         @initialize()
 
     initialize: () ->
-        @template.stream = @stream
-        @builder._stream = new Entry @builder
-        @builder._stream.release()
+        @template.stream = this
+        @builder._stream = new Entry this, @builder
         do @listen
         # register ready handler
         @template.register('ready', @approve_ready)
@@ -77,11 +96,31 @@ class StreamAdapter
             @template.on(event, this["on#{event}"].bind(this))
 
     write: (data) ->
-        @stream.emit('data', data) if data
+        return unless data
+        @emit('error', "write data while paused") if @paused
+        @emit('data', data)
 
     close: () =>
         @builder.closed = yes
-        @stream.emit 'end'
+        @readable = no
+        @emit 'end'
+        @emit 'close'
+
+    # Readable API
+
+    setEncoding: (@encoding) ->
+
+    pause: () ->
+        return if @paused
+        @paused = yes
+        @emit 'pause'
+
+    resume: () ->
+        if @paused
+            @emit 'resume'
+            @paused = no
+        @queue.shift()?() while not @paused and @queue.length
+        return
 
     # eventlisteners
 
@@ -89,7 +128,7 @@ class StreamAdapter
         unless parent.writable
             console.warn "creating #{el.toString()} in closed #{parent.toString()} omitted"
             return
-        el._stream = new Entry el, parent
+        el._stream = new Entry this, el, parent
         @opened_tags++
         el._stream.write =>
             return if el is el.builder
