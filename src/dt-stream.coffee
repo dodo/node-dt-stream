@@ -159,9 +159,10 @@ class StreamAdapter extends Stream # Readable
         if @opened_tags is 0 and @builder.closed is 'pending' and not @queue.length
             @closed?()
             @closed = yes
-        # cleanup element
-        el._stream.delete()
-        delete el._stream
+        el._stream.write ->
+            # cleanup element
+            el._stream.delete()
+            delete el._stream
 
     onclose: (el) ->
         el._stream.write =>
