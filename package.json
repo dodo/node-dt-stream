@@ -1,6 +1,6 @@
 { "name": "dt-stream"
 , "description": "Δt stream adapter - async & dynamic templating engine"
-, "version": "0.2.0"
+, "version": "0.2.1"
 , "homepage": "https://github.com/dodo/node-dt-stream"
 , "author": "dodo (https://github.com/dodo)"
 , "repository": {"type": "git", "url": "git://github.com/dodo/node-dt-stream.git"}
