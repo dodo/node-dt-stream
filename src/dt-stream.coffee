@@ -127,6 +127,9 @@ class StreamAdapter extends Stream # Readable
             @emit 'resume'
             @paused = no
         @queue.shift()?() while not @paused and @queue.length
+        if @closed? and not @queue.length
+            @closed?()
+            @closed = yes
         return
 
     # eventlisteners
@@ -153,7 +156,7 @@ class StreamAdapter extends Stream # Readable
     onremove: (el) ->
         # close stream if builder is already closed
         @opened_tags--
-        if @opened_tags is 0 and @builder.closed is 'pending'
+        if @opened_tags is 0 and @builder.closed is 'pending' and not @queue.length
             @closed?()
             @closed = yes
         # cleanup element
