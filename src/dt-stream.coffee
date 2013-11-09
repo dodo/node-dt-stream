@@ -25,12 +25,13 @@ class Entry
             @release() if @children
             @isnext = yes
         # get the order position of this entry
-        @idx = @parent?._stream.children ? -1
+        idx = @parent?._stream.children ? -1
         # placeholder for close
         @parent?._stream.children++
         # when this entry is ready resume parent
-        el.ready =>
-            @parent?._stream.emit('close', order:@idx+1)
+        el.ready ->
+            @parent?._stream.emit('close scope', order:idx+1)
+        @parent?._stream.release()
 
     emit: ->
         @order.emit(arguments...)
@@ -41,7 +42,8 @@ class Entry
         @emit 'entry', {job, order:(++@children)}
 
     release: () =>
-        @emit 'release', {order:0} unless @released
+        return if @released
+        @emit 'open scope', {order:0}
         @released = yes
 
 
@@ -59,14 +61,16 @@ class StreamAdapter
         @builder._stream.release()
         do @listen
         # register ready handler
-        @template.register 'ready', (tag, next) ->
-            # when tag is already in the dom its fine,
-            #  else wait until it is inserted into dom
-            if tag._stream_ready is yes
+        @template.register('ready', @approve_ready)
+
+    approve_ready: (tag, next) ->
+        # when tag is already in the dom its fine,
+        #  else wait until it is inserted into dom
+        if tag._stream_ready is yes
+            next(tag)
+        else
+            tag._stream_ready = ->
                 next(tag)
-            else
-                tag._stream_ready = ->
-                    next(tag)
 
     listen: () ->
         EVENTS.forEach (event) =>
@@ -105,7 +109,6 @@ class StreamAdapter
             el._stream_ready?()
             el._stream_ready = yes
 
-
     ondata: (el, data) ->
         el._stream.write =>
             @write data
@@ -120,14 +123,14 @@ class StreamAdapter
 
     onattr: (el, key, value) ->
         return unless el.isempty
+        return unless el._stream_ready is yes
         console.warn "attributes of #{el.toString()} don't change anymore"
 
     onend: () ->
-        if @closed? and @opened_tags is 0
-            @close()
-        else
-            @builder.closed = 'pending'
-            @closed = @close
+        return @close() if @closed? or @opened_tags is 0
+        # delay until last tag gets closed and written out
+        @builder.closed = 'pending'
+        @closed = @close
 
 
 
