@@ -3,7 +3,7 @@ OrderedEmitter = require 'ordered-emitter'
 { prettify, attrStr } = require './util'
 
 EVENTS = [
-    'add', 'close', 'end'
+    'add', 'close', 'end', 'remove',
     'attr','text', 'raw', 'data'
 ]
 
@@ -41,7 +41,7 @@ class Entry
             do job
 
     emit: ->
-        @order.emit(arguments...)
+        @order?.emit(arguments...)
 
     write: (job) ->
         payload = {job, order:(++@children)}
@@ -60,6 +60,12 @@ class Entry
         @emit 'open scope', {order:0}
         @released = yes
 
+    delete: () =>
+        @order.removeAllListeners()
+        @order.reset()
+        @order.clear()
+        delete @parent
+        delete @order
 
 
 class StreamAdapter extends Stream # Readable
@@ -142,6 +148,10 @@ class StreamAdapter extends Stream # Readable
             if @opened_tags is 0
                 @closed?()
                 @closed = yes
+
+    onremove: (el) ->
+        el._stream.delete()
+        delete el._stream
 
     onclose: (el) ->
         el._stream.write =>
