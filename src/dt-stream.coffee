@@ -22,7 +22,7 @@ class Entry
         @order.on('entry', ({job}) -> job?())
         # tell the parent to write this entry when its time
         @parent?._stream.write =>
-            @release() if @children
+            @release() if not el.isempty or el.closed is yes
             @isnext = yes
         # get the order position of this entry
         idx = @parent?._stream.children ? -1
@@ -93,7 +93,7 @@ class StreamAdapter
         @opened_tags++
         el._stream.write =>
             return if el is el.builder
-            if el.closed is 'self'
+            if el.isempty and el.closed is yes
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
             else
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}>"
@@ -106,7 +106,7 @@ class StreamAdapter
 
     onclose: (el) ->
         el._stream.write =>
-            unless el.closed is 'self' or el is el.builder
+            unless el.isempty or el is el.builder
                 @write prettify el, "</#{el.name}>"
             # call next callback of the registered 'ready' checker
             el._stream_ready?()
