@@ -72,6 +72,7 @@ class StreamAdapter extends Stream # Readable
     constructor: (@template, opts = {}) ->
         super()
         @builder = @template.xml ? @template
+        @autoremove = opts.autoremove ? on
         @encoding = opts.encoding ? 'utf8'
         @opened_tags = 0
         @readable = yes
@@ -142,14 +143,20 @@ class StreamAdapter extends Stream # Readable
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}/>"
             else
                 @write prettify el, "<#{el.name}#{attrStr el.attrs}>"
+        return unless @autoremove
         el.ready =>
-            # close stream if builder is already closed
-            @opened_tags--
-            if @opened_tags is 0
-                @closed?()
-                @closed = yes
+            if el.closed is 'removed'
+                @onremove(el) if el._stream
+            else
+                el.remove() # prevent memory leak
 
     onremove: (el) ->
+        # close stream if builder is already closed
+        @opened_tags--
+        if @opened_tags is 0 and @builder.closed is 'pending'
+            @closed?()
+            @closed = yes
+        # cleanup element
         el._stream.delete()
         delete el._stream
 
