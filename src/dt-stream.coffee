@@ -151,11 +151,12 @@ class StreamAdapter extends Stream # Readable
         return unless @autoremove
         el.ready =>
             if el.closed is 'removed'
-                @onremove(el) if el._stream
+                @onremove(el)
             else
                 el.remove() # prevent memory leak
 
     onremove: (el) ->
+        return unless el._stream?
         # close stream if builder is already closed
         @opened_tags--
         if @opened_tags is 0 and @builder.closed is 'pending' and not @queue.length
@@ -167,7 +168,7 @@ class StreamAdapter extends Stream # Readable
             delete el._stream
 
     onclose: (el) ->
-        el._stream.write =>
+        el._stream?.write =>
             unless el.isempty or el is el.builder
                 @write prettify el, "</#{el.name}>"
             # call next callback of the registered 'ready' checker
@@ -175,15 +176,15 @@ class StreamAdapter extends Stream # Readable
             el._stream_ready = yes
 
     ondata: (el, data) ->
-        el._stream.write =>
+        el._stream?.write =>
             @write data
 
     ontext: (el, text) ->
-        el._stream.write =>
+        el._stream?.write =>
             @write prettify el, text
 
     onraw: (el, html) ->
-        el._stream.write =>
+        el._stream?.write =>
             @write html
 
     onattr: (el, key, value) ->
