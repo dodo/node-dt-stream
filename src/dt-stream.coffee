@@ -121,10 +121,12 @@ class StreamAdapter extends Stream # Readable
         return if @paused
         @paused = yes
         @emit 'pause'
+        @template.emit 'pause'
 
     resume: () ->
         if @paused
             @emit 'resume'
+            @template.emit 'pause'
             @paused = no
         @queue.shift()?() while not @paused and @queue.length
         if @closed? and not @queue.length
