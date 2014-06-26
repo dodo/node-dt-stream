@@ -72,6 +72,8 @@ class StreamAdapter extends Stream # Readable
     constructor: (@template, opts = {}) ->
         super()
         @builder = @template.xml ? @template
+        @builder.apdaters ?= {}
+        @builder.apdaters['stream'] = this
         @autoremove = opts.autoremove ? on
         @encoding = opts.encoding ? 'utf8'
         @opened_tags = 0
