@@ -75,7 +75,7 @@ class StreamAdapter extends Stream # Readable
         @builder.apdaters ?= {}
         @builder.apdaters['stream'] = this
         @autoremove = opts.autoremove ? on
-        @encoding = opts.encoding ? 'utf8'
+        @setEncoding opts.encoding ? 'utf8'
         @opened_tags = 0
         @readable = yes
         @paused = no
